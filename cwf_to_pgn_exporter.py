@@ -181,6 +181,7 @@ def game_to_pgn(game):
     res = []
     res.append('[Event "CWF Game between %s and %s"]' % (player_white['name'], player_black['name']))
     res.append('[Site "Chess With Friends"]')
+    res.append('[Annotator "https://github.com/oliver006/cwf_to_pgn_exporter"]')
     res.append('[Date "%s"]' % game_date)
     res.append('[Round "%s"]' % pgn_round)
     res.append('[White "%s"]' % player_white['name'])

@@ -177,7 +177,7 @@ def game_to_pgn(game):
         movetext += " %s" % pgn_result
     else:
         pgn_round = int(move_num / 2)
-        pgn_result = "-"
+        pgn_result = "*"
 
     res = []
     res.append('[Event "CWF Game between %s and %s"]' % (player_white['name'], player_black['name']))

@@ -146,7 +146,7 @@ def game_to_pgn(game):
 
     move_num = 1
     movetext = ""
-    game_winner = False
+    game_ending = False
 
     while moves:
         move = moves.pop(0)
@@ -154,12 +154,12 @@ def game_to_pgn(game):
 
         # todo: need to figure out what a daw looks like
         if move_san == "CHECKMATE":
-            game_winner = 'W' if move_num % 2 == 1 else 'B'
+            game_ending = 'W' if move_num % 2 == 1 else 'B'
             movetext += "# "
             break
 
         if move_san == "RESIGNED":
-            game_winner, player_resigning = ('B', 'white') if move_num % 2 == 1 else ('W', 'black')
+            game_ending, player_resigning = ('B', 'white') if move_num % 2 == 1 else ('W', 'black')
             movetext += " {%s resigned}" % (player_resigning)
             break
 
@@ -169,11 +169,12 @@ def game_to_pgn(game):
         movetext += " %s" % move_san
         move_num += 1
 
-    if game_winner:
+    if game_ending:
         pgn_round = "-"
 
         # todo: not handling a draw yet
-        pgn_result = "1-0" if game_winner == 'W' else '0-1'
+        pgn_result = "1-0" if game_ending == 'W' else '0-1'
+        movetext += " %s" % pgn_result
     else:
         pgn_round = int(move_num / 2)
         pgn_result = "-"

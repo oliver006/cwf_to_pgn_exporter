@@ -32,6 +32,15 @@ import xmltodict
 import random
 import sys
 
+SIDE_WHITE = 'W'
+SIDE_BLACK = 'B'
+
+RESULT_CHECKMATE = 'CHECKMATE'
+RESULT_RESIGNED  = 'RESIGNED'
+RESULT_DECLINED  = 'DECLINED'
+
+VERSION = "0.1.1"
+
 
 def get_games(username, password):
     device_token = '%20'.join([''.join([random.choice("1234567890abcdef") for i in range(8)]) for i in range(8)])
@@ -80,13 +89,13 @@ def move_to_san(move):
     move_to_xy = (int(move['to-x']), int(move['to-y']))
 
     if move_from_xy[0] == 97:
-        return "DECLINED"
+        return RESULT_DECLINED
 
     if move_from_xy[0] == 99:
-        return "RESIGNED"
+        return RESULT_RESIGNED
 
     if move_from_xy[0] == 100:
-        return "CHECKMATE"
+        return RESULT_CHECKMATE
 
     prev_board = json.loads(move['data'])['prev_board'].replace("e", " ")
     piece_src = prev_board[xy_to_board_loc(move_from_xy)].upper()
@@ -108,7 +117,7 @@ def move_to_san(move):
         # pawn promotion
         # todo: currently, this is handling promotion to queen only
         if piece_src == 'P' and (move_to_xy[1] == 7 or move_to_xy[1] == 0):
-            pawn_promo_map = {'201': 'Q'}
+            pawn_promo_map = {'101': 'Q', '201': 'Q'} # black and white queen got separate codes?
             san_movetext += "=" + pawn_promo_map[move['promoted']]
 
         # castling
@@ -130,70 +139,81 @@ def move_to_san(move):
 
     return san_movetext
 
-
 def game_to_pgn(game):
-    player_white = game['users']['user'][0]
-    player_black = game['users']['user'][1]
+    res = list()
 
-    game_date = game['created-at'][:10].replace("-", ".")
+    try:
+        game_id = game['id']
+        player_white = game['users']['user'][0]
+        player_black = game['users']['user'][1]
 
-    # remove "@type"
-    assert game['moves'].popitem(False) == (u'@type', u'array')
+        game_date = game['created-at'][:10].replace("-", ".")
 
-    # needed cause single moves are not returned as an array via [0] but as ['move']
-    temp_moves = game['moves'].popitem(False)[1]
-    moves = temp_moves if isinstance(temp_moves, list) else [temp_moves]
+        # remove "@type"
+        assert game['moves'].popitem(False) == (u'@type', u'array')
 
-    move_num = 1
-    movetext = ""
-    game_ending = False
+        # needed cause single moves are not returned as an array via [0] but as ['move']
+        temp_moves = game['moves'].popitem(False)[1]
+        moves = temp_moves if isinstance(temp_moves, list) else [temp_moves]
 
-    while moves:
-        move = moves.pop(0)
-        move_san = move_to_san(move)
+        move_num = 1
+        movetext = ""
+        game_ending = False
 
-        # todo: need to figure out what a daw looks like
-        if move_san == "CHECKMATE":
-            game_ending = 'W' if move_num % 2 == 1 else 'B'
-            movetext += "# "
-            break
+        while moves:
+            move = moves.pop(0)
+            move_san = move_to_san(move)
+            current_side = SIDE_WHITE if move_num % 2 == 1 else SIDE_BLACK
 
-        if move_san == "RESIGNED":
-            game_ending, player_resigning = ('B', 'white') if move_num % 2 == 1 else ('W', 'black')
-            movetext += " {%s resigned}" % (player_resigning)
-            break
+            # todo: need to figure out what a daw looks like
+            if move_san == RESULT_CHECKMATE:
+                game_ending = current_side
+                movetext += "# "
+                break
 
-        if move_num % 2 == 1:
-            movetext += " %d." % int(move_num / 2 + 1)
+            if move_san == RESULT_RESIGNED:
+                game_ending, player_resigning = ('B', 'white') if current_side == SIDE_WHITE else ('W', 'black')
+                movetext += " {%s resigned}" % (player_resigning)
+                break
 
-        movetext += " %s" % move_san
-        move_num += 1
+            if current_side == SIDE_WHITE:
+                movetext += " %d." % int(move_num / 2 + 1)
 
-    if game_ending:
-        pgn_round = "-"
+            movetext += " %s" % move_san
+            move_num += 1
 
-        # todo: not handling a draw yet
-        pgn_result = "1-0" if game_ending == 'W' else '0-1'
-        movetext += " %s" % pgn_result
-    else:
-        pgn_round = int(move_num / 2)
-        pgn_result = "*"
+        if game_ending:
+            pgn_round = "-"
 
-    res = []
-    res.append('[Event "CWF Game between %s and %s"]' % (player_white['name'], player_black['name']))
-    res.append('[Site "Chess With Friends"]')
-    res.append('[Annotator "https://github.com/oliver006/cwf_to_pgn_exporter"]')
-    res.append('[Date "%s"]' % game_date)
-    res.append('[Round "%s"]' % pgn_round)
-    res.append('[White "%s"]' % player_white['name'])
-    res.append('[Black "%s"]' % player_black['name'])
-    res.append('[Result "%s"]' % pgn_result)
-    res.append(movetext.strip())
+            # todo: not handling a draw yet
+            pgn_result = "1-0" if game_ending == SIDE_WHITE else '0-1'
+            movetext += " %s" % pgn_result
+        else:
+            pgn_round = int(move_num / 2)
+            pgn_result = "*"
+
+        res.append('[Event "CWF Game between %s and %s (id: %s)"]' % (player_white['name'],
+                                                                     player_black['name'],
+                                                                     game_id))
+        res.append('[Site "Chess With Friends"]')
+        res.append('[Annotator "https://github.com/oliver006/cwf_to_pgn_exporter"]')
+        res.append('[Date "%s"]' % game_date)
+        res.append('[Round "%s"]' % pgn_round)
+        res.append('[White "%s"]' % player_white['name'])
+        res.append('[Black "%s"]' % player_black['name'])
+        res.append('[Result "%s"]' % pgn_result)
+        res.append(movetext.strip())
+
+    except Exception as ex:
+        res.append("Failed to generate PGN for game:")
+        res.append(str(game))
+        res.append("Exception:")
+        res.append(str(ex))
 
     return res
 
-
 def main():
+    print ("CWF to PGN Exporter v%s" % VERSION)
     parser = argparse.ArgumentParser(description='Export Chess With Friends games to PGN')
     parser.add_argument('--username', dest='username', help='CWF account username')
     parser.add_argument('--password', dest='password', help='CWF account password')
@@ -204,9 +224,10 @@ def main():
         parser.print_help(sys.stdout)
         exit(-1)
 
+    import ipdb; ipdb.set_trace()
     games, raw_xml = get_games(args.username, args.password)
 
-    if games is None:
+    if games is False:
         print ("Couldn't retrieve games - wrong login info?")
     else:
         print ("Authenticated and downloaded XML data")

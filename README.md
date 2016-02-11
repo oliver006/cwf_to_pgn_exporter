@@ -28,7 +28,6 @@ Sample PGN output:
 A few things are still missing/incomplete, in particular
 - pawn promotion only supports promotion to queen right now
 - en passant is not marked with an `x` (eg. looks like a regular pawn move)
-- draws aren't handled yet, only win/loss/resignation
 - possibly more
 
 Please open a Github issue if you have suggestions, comments, additions, etc

@@ -38,8 +38,12 @@ SIDE_BLACK = 'B'
 RESULT_CHECKMATE = 'CHECKMATE'
 RESULT_RESIGNED  = 'RESIGNED'
 RESULT_DECLINED  = 'DECLINED'
+RESULT_DRAW      = 'DRAW'
 
 VERSION = "0.1.1"
+
+map_winner_to_result = {'W':'1-0', 'B': '0-1', '-': '1/2-1/2'}
+map_trans_loc = {0: 'a', 1: 'b', 2: 'c', 3: 'd', 4: 'e', 5: 'f', 6: 'g', 7: 'h'}
 
 
 def get_games(username, password):
@@ -72,11 +76,10 @@ def get_games(username, password):
     return False, ""
 
 
-trans_map = {0: 'a', 1: 'b', 2: 'c', 3: 'd', 4: 'e', 5: 'f', 6: 'g', 7: 'h'}
 
 
 def xy_to_coord(xy):
-    return "%s%d" % (trans_map[int(xy[0])], 8 - int(xy[1]))
+    return "%s%d" % (map_trans_loc[int(xy[0])], 8 - int(xy[1]))
 
 
 def xy_to_board_loc(xy):
@@ -87,6 +90,10 @@ def xy_to_board_loc(xy):
 def move_to_san(move):
     move_from_xy = (int(move['from-x']), int(move['from-y']))
     move_to_xy = (int(move['to-x']), int(move['to-y']))
+
+    # 95 --> offers draw, 96 --> accepts draw?
+    if move_from_xy[0] == 95:
+        return RESULT_DRAW
 
     if move_from_xy[0] == 97:
         return RESULT_DECLINED
@@ -147,6 +154,12 @@ def game_to_pgn(game):
         player_white = game['users']['user'][0]
         player_black = game['users']['user'][1]
 
+        if game_id == '10252877482':
+
+            import ipdb; ipdb.set_trace()
+            print game_id
+
+
         game_date = game['created-at'][:10].replace("-", ".")
 
         # remove "@type"
@@ -158,7 +171,7 @@ def game_to_pgn(game):
 
         move_num = 1
         movetext = ""
-        game_ending = False
+        game_winner = None
 
         while moves:
             move = moves.pop(0)
@@ -167,13 +180,18 @@ def game_to_pgn(game):
 
             # todo: need to figure out what a daw looks like
             if move_san == RESULT_CHECKMATE:
-                game_ending = current_side
+                game_winner = current_side
                 movetext += "# "
                 break
 
-            if move_san == RESULT_RESIGNED:
-                game_ending, player_resigning = ('B', 'white') if current_side == SIDE_WHITE else ('W', 'black')
-                movetext += " {%s resigned}" % (player_resigning)
+            elif move_san == RESULT_RESIGNED:
+                game_winner, player_resigning = ('B', 'white') if current_side == SIDE_WHITE else ('W', 'black')
+                movetext += " {%s resigned}" % player_resigning
+                break
+
+            elif move_san == RESULT_DRAW:
+                game_winner = '-'
+                movetext += " { Draw }"
                 break
 
             if current_side == SIDE_WHITE:
@@ -182,19 +200,17 @@ def game_to_pgn(game):
             movetext += " %s" % move_san
             move_num += 1
 
-        if game_ending:
+        if game_winner:
             pgn_round = "-"
-
-            # todo: not handling a draw yet
-            pgn_result = "1-0" if game_ending == SIDE_WHITE else '0-1'
+            pgn_result = map_winner_to_result[game_winner]
             movetext += " %s" % pgn_result
         else:
             pgn_round = int(move_num / 2)
             pgn_result = "*"
 
         res.append('[Event "CWF Game between %s and %s (id: %s)"]' % (player_white['name'],
-                                                                     player_black['name'],
-                                                                     game_id))
+                                                                      player_black['name'],
+                                                                      game_id))
         res.append('[Site "Chess With Friends"]')
         res.append('[Annotator "https://github.com/oliver006/cwf_to_pgn_exporter"]')
         res.append('[Date "%s"]' % game_date)
@@ -224,7 +240,6 @@ def main():
         parser.print_help(sys.stdout)
         exit(-1)
 
-    import ipdb; ipdb.set_trace()
     games, raw_xml = get_games(args.username, args.password)
 
     if games is False:

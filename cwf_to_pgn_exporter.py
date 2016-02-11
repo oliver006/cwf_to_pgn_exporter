@@ -154,12 +154,6 @@ def game_to_pgn(game):
         player_white = game['users']['user'][0]
         player_black = game['users']['user'][1]
 
-        if game_id == '10252877482':
-
-            import ipdb; ipdb.set_trace()
-            print game_id
-
-
         game_date = game['created-at'][:10].replace("-", ".")
 
         # remove "@type"
